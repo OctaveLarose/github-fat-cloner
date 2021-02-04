@@ -1,4 +1,6 @@
 import os
+import shutil
+
 from github import Github
 import git
 
@@ -25,6 +27,7 @@ def clone_repo(repo_url: str, repos_path: str):
 
     print(f"Cloning {repo_url.split('/')[-1][:-4]}...")
     git.Repo.clone_from(repo_url, output_dir, progress=CloneProgressPrinter(), multi_options=["--depth=1"])
+    shutil.rmtree(os.path.join(output_dir, ".git"))
     print(f"{repo_url} cloned.")
 
 
