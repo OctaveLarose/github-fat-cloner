@@ -1,5 +1,6 @@
 import os
 import shutil
+from typing import Tuple
 
 from github import Github
 import git
@@ -28,15 +29,13 @@ def clone_repo(repo_url: str, output_dir: str):
     print(f"{repo_url} cloned.")
 
 
-def main():
-    g = Github(os.environ["GITHUB_TOKEN"])
-
-    if not os.path.isdir(REPOS_PATH):
-        os.mkdir(REPOS_PATH)
-
+def search_and_clone(github_api_instance: Github) -> Tuple[int, int, bool]:
     nbr_repos_found = 0
     total_nbr_repos = 0
-    for repo in g.search_repositories(QUERY_STR):
+    should_stop = False
+
+    # Sorting by last updated to get new results instead of always the same ones
+    for repo in github_api_instance.search_repositories(QUERY_STR, sort="updated"):
         total_nbr_repos += 1
         try:
             output_dir = os.path.join(REPOS_PATH, get_repo_name_from_url(repo.clone_url))
@@ -54,6 +53,26 @@ def main():
             clone_repo(repo.clone_url, output_dir)
             nbr_repos_found += 1
         except KeyboardInterrupt:
+            should_stop = True
+            break
+
+    return nbr_repos_found, total_nbr_repos, should_stop
+
+
+def main():
+    github_api_instance = Github(os.environ["GITHUB_TOKEN"])
+
+    if not os.path.isdir(REPOS_PATH):
+        os.mkdir(REPOS_PATH)
+
+    nbr_repos_found = 0
+    total_nbr_repos = 0
+
+    while 1:
+        search_res_found, search_res_total, should_stop = search_and_clone(github_api_instance)
+        nbr_repos_found += search_res_found
+        total_nbr_repos += search_res_total
+        if should_stop:
             break
 
     print(f"{nbr_repos_found} found, out of {total_nbr_repos} repos.")
