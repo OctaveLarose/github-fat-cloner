@@ -10,7 +10,8 @@ MIN_LINES_NBR = 200000
 MIN_NBR_CONTRIBUTORS = 3
 MIN_NBR_COMMITS = 20
 
-REPOS_PATH = "../../../../../java_codebases"
+REPOS_PATH = "../../input_data/java_codebases"
+
 
 class CloneProgressPrinter(git.remote.RemoteProgress):
     def update(self, op_code, cur_count, max_count=None, message=''):
