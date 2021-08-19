@@ -1,5 +1,6 @@
 import os
 import shutil
+import subprocess
 from typing import Tuple
 
 from github import Github
@@ -10,7 +11,8 @@ MIN_LINES_NBR = 200000
 MIN_NBR_CONTRIBUTORS = 3
 MIN_NBR_COMMITS = 20
 
-REPOS_PATH = "../../input_data/java_codebases"
+REPOS_PATH = "../../input_data/java_codebases_real"
+TMP_CLONE_LOCATION = "/tmp/"
 
 
 class CloneProgressPrinter(git.remote.RemoteProgress):
@@ -30,6 +32,22 @@ def clone_repo(repo_url: str, output_dir: str):
     print(f"{repo_url} cloned.")
 
 
+def del_repo(repo_dir: str):
+    shutil.rmtree(repo_dir)
+
+
+def count_loc_in_dir(repo_dir: str) -> int:
+    loc_lines = subprocess.check_output("cloc --include-lang 'Java' " + repo_dir, shell=True).decode("utf-8").split("\n")
+    JAVA_LINE_IDX = 8
+
+    if len(loc_lines) < JAVA_LINE_IDX:
+        return 0
+
+    blank_loc, comment_loc, code_loc = [int(x) for x in loc_lines[JAVA_LINE_IDX].split()[2:]]
+
+    return blank_loc + comment_loc + code_loc
+
+
 def search_and_clone(github_api_instance: Github) -> Tuple[int, int, bool]:
     nbr_repos_found = 0
     total_nbr_repos = 0
@@ -39,19 +57,22 @@ def search_and_clone(github_api_instance: Github) -> Tuple[int, int, bool]:
     for repo in github_api_instance.search_repositories(QUERY_STR, sort="updated"):
         total_nbr_repos += 1
         try:
-            output_dir = os.path.join(REPOS_PATH, get_repo_name_from_url(repo.clone_url))
-            if os.path.isdir(output_dir):
-                print(f"{output_dir} already exists, skipping cloning.")
+            final_output_dir = os.path.join(REPOS_PATH, get_repo_name_from_url(repo.clone_url))
+            if os.path.isdir(final_output_dir):
+                print(f"{final_output_dir} already exists, skipping.")
                 continue
 
-            repo_languages = repo.get_languages()
-            if len(repo_languages) != 1 or repo_languages["Java"] < MIN_LINES_NBR:
+            tmp_output_dir = os.path.join(TMP_CLONE_LOCATION, get_repo_name_from_url(repo.clone_url))
+            clone_repo(repo.clone_url, tmp_output_dir)
+
+            if count_loc_in_dir(tmp_output_dir) < MIN_LINES_NBR or \
+                    repo.get_contributors().totalCount < MIN_NBR_CONTRIBUTORS or\
+                    repo.get_commits().totalCount < MIN_NBR_COMMITS:
+                del_repo(tmp_output_dir)
                 continue
-            if repo.get_contributors().totalCount < MIN_NBR_CONTRIBUTORS:
-                continue
-            if repo.get_commits().totalCount < MIN_NBR_COMMITS:
-                continue
-            clone_repo(repo.clone_url, output_dir)
+
+            shutil.move(tmp_output_dir, final_output_dir)
+            print("Accepted repository" + repo.clone_url)
             nbr_repos_found += 1
         except KeyboardInterrupt:
             should_stop = True
